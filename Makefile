@@ -106,7 +106,7 @@ veritedium:
 	$(foreach SRC,$(VERILOG_SRC),$(call veritedium-command,$(SRC)))
 
 #H# lint               : Run the verilator linter for the RTL code
-lint: print-rtl-srcs
+lint: veritedium print-rtl-srcs
 	@if [[ "$(FPGA_TOP_MODULE)" == "" ]]; then\
 		echo -e "$(_error_)[ERROR] No defined top module!$(_reset_)";\
 	else\
@@ -117,6 +117,37 @@ lint: print-rtl-srcs
 #H# lattice-flash-fpga : Program the BIN file into the connected Lattice FPGA
 lattice-flash-fpga: $(BIN_OBJ) $(RTL_OBJS)
 	@$(LATTICE_PROG) $(LATTICE_PROG_FLAGS)
+
+#H# fpga-rtl-sim       : Run RTL simulation (FPGA test)
+fpga-rtl-sim:
+	@echo -e "$(_info_)\n[INFO] FPGA Test RTL Simulation\n$(_reset_)";\
+	if [[ "$(SIM_TOOL)" == "" ]]; then\
+		echo -e "$(_error_)[ERROR] No defined RTL simulation tool! Define \"SIM_TOOL\" environment variable or define it in the \"project.config\" file.$(_reset_)";\
+	else\
+		for stool in $(SIM_TOOL);\
+		do\
+			if [[ "$(FPGA_SIM_MODULES)" == "" ]]; then\
+				echo -e "$(_error_)[ERROR] No defined simulation top module!$(_reset_)";\
+			else\
+				echo -e "$(_info_)[INFO] Simulation with $${stool} tool\n$(_reset_)";\
+				for smodule in $(FPGA_SIM_MODULES);\
+				do\
+					echo -e "$(_flag_)\n [*] Simulating Top Module : $${smodule}\n$(_reset_)";\
+					$(MAKE) -C $(SIMULATION_DIR) sim\
+						SIM_TOP_MODULE=$${smodule}\
+						SIM_TOOL=$${stool}\
+						SIM_CREATE_VCD=$(SIM_CREATE_VCD)\
+						SIM_OPEN_WAVE=$(SIM_OPEN_WAVE)\
+						EXT_VERILOG_SRC="$(VERILOG_SRC)"\
+						EXT_VERILOG_HEADERS="$(VERILOG_HEADERS)"\
+						EXT_PACKAGE_SRC="$(PACKAGE_SRC)"\
+						EXT_MEM_SRC="$(MEM_SRC)"\
+						EXT_INCLUDE_DIRS="$(INCLUDE_DIRS)"\
+						EXT_RTL_PATHS="$(RTL_PATHS)";\
+				done;\
+			fi;\
+		done;\
+	fi
 
 %.blif: $(RTL_OBJS)
 	@mkdir -p $(BUILD_DIR)
