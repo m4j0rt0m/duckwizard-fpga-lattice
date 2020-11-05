@@ -122,15 +122,15 @@ lattice-flash-fpga: $(BIN_OBJ) $(RTL_OBJS)
 fpga-rtl-sim:
 	@echo -e "$(_info_)\n[INFO] FPGA Test RTL Simulation\n$(_reset_)";\
 	if [[ "$(SIM_TOOL)" == "" ]]; then\
-		echo -e "$(_error_)[ERROR] No defined RTL simulation tool! Define \"SIM_TOOL\" environment variable or define it in the \"project.config\" file.$(_reset_)";\
+		echo -e "$(_error_)[ERROR] No defined RTL simulation tool!$(_reset_)";\
 	else\
 		for stool in $(SIM_TOOL);\
 		do\
-			if [[ "$(FPGA_SIM_MODULES)" == "" ]]; then\
+			if [[ "$(SIM_MODULES)" == "" ]]; then\
 				echo -e "$(_error_)[ERROR] No defined simulation top module!$(_reset_)";\
 			else\
 				echo -e "$(_info_)[INFO] Simulation with $${stool} tool\n$(_reset_)";\
-				for smodule in $(FPGA_SIM_MODULES);\
+				for smodule in $(SIM_MODULES);\
 				do\
 					echo -e "$(_flag_)\n [*] Simulating Top Module : $${smodule}\n$(_reset_)";\
 					$(MAKE) -C $(SIMULATION_DIR) sim\
