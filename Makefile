@@ -105,7 +105,7 @@ rtl-report: $(RPT_OBJ)
 veritedium:
 	@echo -e "$(_flag_)Running Veritedium Autocomplete..."
 	@$(foreach SRC,$(VERILOG_SRC),$(call veritedium-command,$(SRC)))
-	@echo -e $(_flag_)"Deleting unnecessary backup files (*~ or *.bak)..."
+	@echo -e "$(_flag_)Deleting unnecessary backup files (*~ or *.bak)..."
 	find ./* -name "*~" -delete
 	find ./* -name "*.bak" -delete
 	@echo -e "$(_flag_)Finished!$(_reset_)"
