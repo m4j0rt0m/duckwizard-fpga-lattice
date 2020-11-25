@@ -1,5 +1,4 @@
 ###################################################################
-# Project:                                                        #
 # Description:      Lattice FPGA Board Test - Makefile            #
 #                                                                 #
 # Template written by Abraham J. Ruiz R.                          #
@@ -7,9 +6,11 @@
 ###################################################################
 
 SHELL                      := /bin/bash
+REMOTE-URL-SSH             := git@github.com:m4j0rt0m/rtl-develop-template-fpga-lattice.git
+REMOTE-URL-HTTPS           := https://github.com/m4j0rt0m/rtl-develop-template-fpga-lattice.git
 
-MKFILE_PATH                 = $(abspath $(firstword $(MAKEFILE_LIST)))
-TOP_DIR                     = $(shell dirname $(MKFILE_PATH))
+MKFILE_PATH                := $(abspath $(firstword $(MAKEFILE_LIST)))
+TOP_DIR                    := $(shell dirname $(MKFILE_PATH))
 
 ### directories ###
 SOURCE_DIR                  = $(TOP_DIR)/src
@@ -31,7 +32,6 @@ EXT_VERILOG_SRC            ?=
 EXT_VERILOG_HEADERS        ?=
 EXT_PACKAGE_SRC            ?=
 EXT_MEM_SRC                ?=
-EXT_INCLUDE_DIRS           ?=
 EXT_RTL_PATHS              ?=
 
 ### fpga rtl directories ###
@@ -48,7 +48,7 @@ MEM_SRC                     = $(EXT_MEM_SRC) $(wildcard $(shell find $(MEM_DIRS)
 RTL_PATHS                   = $(EXT_RTL_PATHS) $(RTL_DIRS) $(INCLUDE_DIRS) $(PACKAGE_DIRS) $(MEM_DIRS)
 
 ### include flags ###
-INCLUDES_FLAGS              = $(addprefix -I, $(INCLUDE_DIRS)) $(addprefix -I, $(EXT_INCLUDE_DIRS))
+INCLUDES_FLAGS              = $(addprefix -I, $(RTL_PATHS))
 
 ### synthesis objects ###
 BUILD_DIR                   = $(OUTPUT_DIR)/$(FPGA_TOP_MODULE)
@@ -103,7 +103,12 @@ rtl-report: $(RPT_OBJ)
 
 #H# veritedium         : Run veritedium AUTO features
 veritedium:
-	$(foreach SRC,$(VERILOG_SRC),$(call veritedium-command,$(SRC)))
+	@echo "Running Veritedium Autocomplete..."
+	@$(foreach SRC,$(VERILOG_SRC),$(call veritedium-command,$(SRC)))
+	@echo "Deleting unnecessary backup files (*~ or *.bak)..."
+	find ./* -name "*~" -delete
+	find ./* -name "*.bak" -delete
+	@echo "Finished!"
 
 #H# lint               : Run the verilator linter for the RTL code
 lint: veritedium print-rtl-srcs
@@ -111,7 +116,7 @@ lint: veritedium print-rtl-srcs
 		echo -e "$(_error_)[ERROR] No defined top module!$(_reset_)";\
 	else\
 		echo -e "$(_info_)\n[INFO] Linting using $(LINT) tool$(_reset_)";\
-		$(LINT) $(LINT_FLAGS) $(VERILOG_SRC) --top-module $(FPGA_TOP_MODULE);\
+		$(LINT) $(LINT_FLAGS) $(FPGA_TOP_MODULE).v --top-module $(FPGA_TOP_MODULE);\
 	fi
 
 #H# lattice-flash-fpga : Program the BIN file into the connected Lattice FPGA
@@ -142,7 +147,6 @@ fpga-rtl-sim:
 						EXT_VERILOG_HEADERS="$(VERILOG_HEADERS)"\
 						EXT_PACKAGE_SRC="$(PACKAGE_SRC)"\
 						EXT_MEM_SRC="$(MEM_SRC)"\
-						EXT_INCLUDE_DIRS="$(INCLUDE_DIRS)"\
 						EXT_RTL_PATHS="$(RTL_PATHS)";\
 				done;\
 			fi;\
