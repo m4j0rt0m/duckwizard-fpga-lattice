@@ -40,12 +40,13 @@ INCLUDE_DIRS                = $(wildcard $(shell find $(SOURCE_DIR) -type d \( -
 PACKAGE_DIRS                = $(wildcard $(shell find $(SOURCE_DIR) -type d \( -iname package \)))
 MEM_DIRS                    = $(wildcard $(shell find $(SOURCE_DIR) -type d \( -iname mem \)))
 
-### sources wildcards ###
+### sources directories ###
 VERILOG_SRC                 = $(EXT_VERILOG_SRC) $(wildcard $(shell find $(RTL_DIRS) -type f \( -iname \*.v -o -iname \*.sv -o -iname \*.vhdl \)))
 VERILOG_HEADERS             = $(EXT_VERILOG_HEADERS) $(wildcard $(shell find $(INCLUDE_DIRS) -type f \( -iname \*.h -o -iname \*.vh -o -iname \*.svh -o -iname \*.sv -o -iname \*.v \)))
 PACKAGE_SRC                 = $(EXT_PACKAGE_SRC) $(wildcard $(shell find $(PACKAGE_DIRS) -type f \( -iname \*.sv \)))
 MEM_SRC                     = $(EXT_MEM_SRC) $(wildcard $(shell find $(MEM_DIRS) -type f \( -iname \*.bin -o -iname \*.hex \)))
 RTL_PATHS                   = $(EXT_RTL_PATHS) $(RTL_DIRS) $(INCLUDE_DIRS) $(PACKAGE_DIRS) $(MEM_DIRS)
+TOP_MODULE_FILE             = $(shell basename $(shell grep -i -w -r "module $(FPGA_TOP_MODULE)" $(RTL_PATHS) | cut -d ":" -f 1))
 
 ### include flags ###
 INCLUDES_FLAGS              = $(addprefix -I, $(RTL_PATHS))
@@ -53,28 +54,41 @@ INCLUDES_FLAGS              = $(addprefix -I, $(RTL_PATHS))
 ### synthesis objects ###
 BUILD_DIR                   = $(OUTPUT_DIR)/$(FPGA_TOP_MODULE)
 RTL_OBJS                    = $(VERILOG_SRC) $(PACKAGE_SRC) $(VERILOG_HEADERS) $(MEM_SRC)
-BLIF_OBJ                    = $(BUILD_DIR)/$(PROJECT).blif
-ASC_OBJ                     = $(BUILD_DIR)/$(PROJECT).asc
 BIN_OBJ                     = $(BUILD_DIR)/$(PROJECT).bin
 RPT_OBJ                     = $(BUILD_DIR)/$(PROJECT).rpt
-BUILD_OBJS                  = $(BLIF_OBJ) $(ASC_OBJ) $(BIN_OBJ)
+CLOCKS_CONST                = $(BUILD_DIR)/$(PROJECT).clocks.py
 
 ### lattice fpga flags ###
 LATTICE_TARGET             := $(or $(LATTICE_TARGET),$(DEFAULT_LATTICE_TARGET))
 LATTICE_DEVICE             := $(or $(LATTICE_DEVICE),$(DEFAULT_LATTICE_DEVICE))
 LATTICE_PACKAGE            := $(or $(LATTICE_PACKAGE),$(DEFAULT_LATTICE_PACKAGE))
 LATTICE_CLOCK_MHZ          := $(or $(LATTICE_CLOCK_MHZ),$(DEFAULT_LATTICE_CLOCK_MHZ))
+LATTICE_PNR_TOOL           := $(or $(LATTICE_PNR_TOOL),$(DEFAULT_LATTICE_PNR_TOOL))
 
 ### rtl yosys synthesis flags ###
 LATTICE_SYN                 = yosys
 LATTICE_SYN_INC_FLAGS       = $(addprefix -I, $(RTL_PATHS))
+ifeq ($(LATTICE_PNR_TOOL),nextpnr)
+LATTICE_SYN_FLAGS           = -p "read_verilog -sv -formal $(LATTICE_SYN_INC_FLAGS) $(VERILOG_SRC) $(PACKAGE_SRC); proc; opt; proc; synth_$(LATTICE_TARGET) -top $(FPGA_TOP_MODULE) -json $@"
+LATTICE_PNR                 = nextpnr-ice40
+ifeq ($(FPGA_USES_CLOCK),yes)
+LATTICE_PNR_FLAGS           = --$(LATTICE_DEVICE) --package $(LATTICE_PACKAGE) --json $(filter %.json, $^) --asc $@ --pre-pack $(filter %.clocks.py, $^) --pcf-allow-unconstrained
+else
+LATTICE_PNR_FLAGS           = --$(LATTICE_DEVICE) --package $(LATTICE_PACKAGE) --json $(filter %.json, $^) --asc $@ --pcf-allow-unconstrained
+endif
+else
 LATTICE_SYN_FLAGS           = -p "read_verilog -sv -formal $(LATTICE_SYN_INC_FLAGS) $(VERILOG_SRC) $(PACKAGE_SRC); proc; opt; proc; synth_$(LATTICE_TARGET) -top $(FPGA_TOP_MODULE) -blif $@"
 LATTICE_PNR                 = arachne-pnr
-LATTICE_PNR_FLAGS           = $< -d $(subst hx,,$(subst lp,,$(LATTICE_DEVICE))) -o $@
+LATTICE_PNR_FLAGS           = $< -d $(subst up,,$(subst hx,,$(subst lp,,$(LATTICE_DEVICE)))) -P $(LATTICE_PACKAGE) -o $@
+endif
 LATTICE_PCK                 = icepack
 LATTICE_PCK_FLAGS           = -v $< $@
 LATTICE_TIME_STA            = icetime
-LATTICE_TIME_STA_FLAGS      = -tmd $(LATTICE_DEVICE) -c $(LATTICE_CLOCK_MHZ) -o $(BUILD_DIR)/$(PROJECT).v -r $@ $<
+ifeq ($(FPGA_USES_CLOCK),yes)
+LATTICE_TIME_STA_FLAGS      = -tmd $(LATTICE_DEVICE) $(addprefix -c ,$(LATTICE_CLOCK_MHZ)) -o $(BUILD_DIR)/$(PROJECT).v -r $@ $<
+else
+LATTICE_TIME_STA_FLAGS      = -tmd $(LATTICE_DEVICE) -o $(BUILD_DIR)/$(PROJECT).v -r $@ $<
+endif
 LATTICE_PROG                = iceprog
 LATTICE_PROG_FLAGS          = $(BIN_OBJ)
 LATTICE_PINOUT_PCF          = $(SCRIPTS_DIR)/$(FPGA_TOP_MODULE)_set_pinout.pcf
@@ -85,14 +99,14 @@ LATTICE_PINOUT_PCF          = $(SCRIPTS_DIR)/$(FPGA_TOP_MODULE)_set_pinout.pcf
 LINT                        = verilator
 LINT_SV_FLAGS               = +1800-2017ext+sv -sv
 LINT_W_FLAGS                = -Wall -Wno-IMPORTSTAR -Wno-fatal
-LINT_FLAGS                  = --lint-only --top-module $(FPGA_TOP_MODULE) $(LINT_SV_FLAGS) $(LINT_W_FLAGS) --quiet-exit --error-limit 200 $(PACKAGE_SRC) $(INCLUDES_FLAGS)
+LINT_FLAGS                  = --lint-only --top-module $(FPGA_TOP_MODULE) $(LINT_SV_FLAGS) $(LINT_W_FLAGS) --quiet-exit --error-limit 200 $(PACKAGE_SRC) $(INCLUDES_FLAGS) $(TOP_MODULE_FILE)
 
 all: lattice-project
 
 ifeq ($(FPGA_BOARD_TEST),yes)
-lattice-project: veritedium rtl-bin rtl-report lattice-flash-fpga
+lattice-project: rtl-bin rtl-report lattice-flash-fpga
 else
-lattice-project: veritedium rtl-report
+lattice-project: rtl-report
 endif
 
 #H# rtl-synth          : Run RTL synthesis with Yosys
@@ -111,16 +125,18 @@ veritedium:
 	@echo -e "$(_flag_)Finished!$(_reset_)"
 
 #H# lint               : Run the verilator linter for the RTL code
-lint: veritedium print-rtl-srcs
+lint: print-rtl-srcs
 	@if [[ "$(FPGA_TOP_MODULE)" == "" ]]; then\
 		echo -e "$(_error_)[ERROR] No defined top module!$(_reset_)";\
 	else\
 		echo -e "$(_info_)\n[INFO] Linting using $(LINT) tool$(_reset_)";\
-		$(LINT) $(LINT_FLAGS) $(FPGA_TOP_MODULE).v --top-module $(FPGA_TOP_MODULE);\
+		echo -e "\n$(_flag_) cmd: $(LINT) $(LINT_FLAGS)$(_reset_)\n";\
+		$(LINT) $(LINT_FLAGS);\
 	fi
 
 #H# lattice-flash-fpga : Program the BIN file into the connected Lattice FPGA
 lattice-flash-fpga: $(BIN_OBJ) $(RTL_OBJS)
+	@echo -e '\n$(_flag_) cmd: ${LATTICE_PROG} ${LATTICE_PROG_FLAGS}$(_reset_)\n'
 	@$(LATTICE_PROG) $(LATTICE_PROG_FLAGS)
 
 #H# fpga-rtl-sim       : Run RTL simulation (FPGA test)
@@ -153,25 +169,57 @@ fpga-rtl-sim:
 		done;\
 	fi
 
-%.blif: $(RTL_OBJS)
+%.blif %.json: $(RTL_OBJS)
 	@mkdir -p $(BUILD_DIR)
+	@echo -e '\n$(_flag_) cmd: ${LATTICE_SYN} ${LATTICE_SYN_FLAGS}$(_reset_)\n'
 	@$(LATTICE_SYN) $(LATTICE_SYN_FLAGS)
 
-%.asc: %.blif
+ifeq ($(LATTICE_PNR_TOOL),nextpnr)
+ifeq ($(FPGA_USES_CLOCK),yes)
+%.asc: %.json %.clocks.py
+else
+%.asc: %.json
+endif
 	@if [[ "$(FPGA_VIRTUAL_PINS)" == "yes" ]]; then\
+		echo -e '\n$(_flag_) cmd: ${LATTICE_PNR} ${LATTICE_PNR_FLAGS}$(_reset_)\n';\
 		$(LATTICE_PNR) $(LATTICE_PNR_FLAGS);\
 	else\
+		echo -e '\n$(_flag_) cmd: ${LATTICE_PNR} --pcf ${LATTICE_PINOUT_PCF} ${LATTICE_PNR_FLAGS}$(_reset_)\n';\
+		$(LATTICE_PNR) --pcf $(LATTICE_PINOUT_PCF) $(LATTICE_PNR_FLAGS);\
+	fi
+else
+%.asc: %.blif
+	@if [[ "$(FPGA_VIRTUAL_PINS)" == "yes" ]]; then\
+		echo -e '\n$(_flag_) cmd: ${LATTICE_PNR} ${LATTICE_PNR_FLAGS}$(_reset_)\n';\
+		$(LATTICE_PNR) $(LATTICE_PNR_FLAGS);\
+	else\
+		echo -e '\n$(_flag_) cmd: ${LATTICE_PNR} -p ${LATTICE_PINOUT_PCF} ${LATTICE_PNR_FLAGS}$(_reset_)\n';\
 		$(LATTICE_PNR) -p $(LATTICE_PINOUT_PCF) $(LATTICE_PNR_FLAGS);\
 	fi
+endif
+
+%.clocks.py:
+	@mkdir -p $(BUILD_DIR);\
+	echo -e "\n$(_info_) Creating clock constraints...\n";\
+	echo "# Automatically created by the Makefile #" | tee $(CLOCKS_CONST);\
+	fpga_clock_src=($(FPGA_CLOCK_SRC));\
+	lattice_clock_mhz=($(LATTICE_CLOCK_MHZ));\
+	for csrc in `seq 0 $$(($${#fpga_clock_src[@]}-1))`;\
+	do\
+		echo "ctx.addClock(\"$${fpga_clock_src[$$csrc]}\",$${lattice_clock_mhz[$$csrc]})" | tee -a $(CLOCKS_CONST);\
+	done
 
 %.rpt: %.asc
 	@if [[ "$(FPGA_VIRTUAL_PINS)" == "yes" ]]; then\
+		echo -e '\n$(_flag_) cmd: ${LATTICE_TIME_STA} ${LATTICE_TIME_STA_FLAGS}$(_reset_)\n';\
 		$(LATTICE_TIME_STA) $(LATTICE_TIME_STA_FLAGS);\
 	else\
+		echo -e '\n$(_flag_) cmd: ${LATTICE_TIME_STA} -p ${LATTICE_PINOUT_PCF} ${LATTICE_TIME_STA_FLAGS}$(_reset_)\n';\
 		$(LATTICE_TIME_STA) -p $(LATTICE_PINOUT_PCF) $(LATTICE_TIME_STA_FLAGS);\
 	fi
 
 %.bin: %.asc
+	@echo -e '\n$(_flag_) cmd: ${LATTICE_PCK} ${LATTICE_PCK_FLAGS}$(_reset_)\n'
 	@$(LATTICE_PCK) $(LATTICE_PCK_FLAGS)
 
 #H# print-rtl-srcs     : Print RTL sources
