@@ -15,6 +15,7 @@ TOP_DIR                    := $(shell dirname $(MKFILE_PATH))
 ### directories ###
 SOURCE_DIR                  = $(TOP_DIR)/src
 OUTPUT_DIR                  = $(TOP_DIR)/build
+SIMULATION_DIR              = $(TOP_DIR)/simulation
 SCRIPTS_DIR                 = $(TOP_DIR)/scripts
 
 ### makefile includes ###
@@ -147,11 +148,11 @@ fpga-rtl-sim:
 	else\
 		for stool in $(SIM_TOOL);\
 		do\
-			if [[ "$(SIM_MODULES)" == "" ]]; then\
+			if [[ "$(FPGA_SIM_MODULES)" == "" ]]; then\
 				echo -e "$(_error_)[ERROR] No defined simulation top module!$(_reset_)";\
 			else\
 				echo -e "$(_info_)[INFO] Simulation with $${stool} tool\n$(_reset_)";\
-				for smodule in $(SIM_MODULES);\
+				for smodule in $(FPGA_SIM_MODULES);\
 				do\
 					echo -e "$(_flag_)\n [*] Simulating Top Module : $${smodule}\n$(_reset_)";\
 					$(MAKE) -C $(SIMULATION_DIR) sim\
