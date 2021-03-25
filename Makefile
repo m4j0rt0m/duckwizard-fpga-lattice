@@ -70,7 +70,7 @@ LATTICE_PNR_TOOL           := $(or $(LATTICE_PNR_TOOL),$(DEFAULT_LATTICE_PNR_TOO
 LATTICE_SYN                 = yosys
 LATTICE_SYN_INC_FLAGS       = $(addprefix -I, $(RTL_PATHS))
 ifeq ($(LATTICE_PNR_TOOL),nextpnr)
-LATTICE_SYN_FLAGS           = -p "read_verilog -sv -formal $(LATTICE_SYN_INC_FLAGS) $(VERILOG_SRC) $(PACKAGE_SRC); proc; opt; proc; synth_$(LATTICE_TARGET) -top $(FPGA_TOP_MODULE) -json $@"
+LATTICE_SYN_FLAGS           = -p "read_verilog -sv -formal $(LATTICE_SYN_INC_FLAGS) $(PACKAGE_SRC) $(VERILOG_SRC); proc; opt; proc; synth_$(LATTICE_TARGET) -top $(FPGA_TOP_MODULE) -json $@"
 LATTICE_PNR                 = nextpnr-ice40
 ifeq ($(FPGA_USES_CLOCK),yes)
 LATTICE_PNR_FLAGS           = --$(LATTICE_DEVICE) --package $(LATTICE_PACKAGE) --json $(filter %.json, $^) --asc $@ --pre-pack $(filter %.clocks.py, $^) --pcf-allow-unconstrained
@@ -78,7 +78,7 @@ else
 LATTICE_PNR_FLAGS           = --$(LATTICE_DEVICE) --package $(LATTICE_PACKAGE) --json $(filter %.json, $^) --asc $@ --pcf-allow-unconstrained
 endif
 else
-LATTICE_SYN_FLAGS           = -p "read_verilog -sv -formal $(LATTICE_SYN_INC_FLAGS) $(VERILOG_SRC) $(PACKAGE_SRC); proc; opt; proc; synth_$(LATTICE_TARGET) -top $(FPGA_TOP_MODULE) -blif $@"
+LATTICE_SYN_FLAGS           = -p "read_verilog -sv -formal $(LATTICE_SYN_INC_FLAGS) $(PACKAGE_SRC) $(VERILOG_SRC); proc; opt; proc; synth_$(LATTICE_TARGET) -top $(FPGA_TOP_MODULE) -blif $@"
 LATTICE_PNR                 = arachne-pnr
 LATTICE_PNR_FLAGS           = $< -d $(subst up,,$(subst hx,,$(subst lp,,$(LATTICE_DEVICE)))) -P $(LATTICE_PACKAGE) -o $@
 endif
