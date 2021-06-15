@@ -1,1 +1,1 @@
-# RTL Development: Lattice FPGA Board Test (Template)
+# duckWizard: Lattice FPGA Board Test
